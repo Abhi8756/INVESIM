@@ -1,59 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  getCurrentUser,
-  fetchAuthSession,
-  signInWithRedirect,
-  signOut,
-} from "aws-amplify/auth";
-import { Hub } from "aws-amplify/utils";
+import { SignInButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
 
 export default function AuthButton() {
-  const [user, setUser] = useState<any>(null);
-
-  useEffect(() => {
-    async function checkUser() {
-      try {
-        const currentUser = await getCurrentUser();
-        setUser(currentUser);
-      } catch {
-        setUser(null);
-      }
-    }
-
-    checkUser();
-
-    const unsubscribe = Hub.listen("auth", (data) => {
-      if (data.payload.event === "signedIn" || data.payload.event === "signedOut") {
-        checkUser();
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  const handleSignIn = async () => {
-    await signInWithRedirect({
-      provider: "COGNITO",
-    });
-  };
-
-  const handleSignOut = async () => {
-    await signOut();
-    setUser(null);
-  };
-
   return (
-    <div style={{ padding: "10px" }}>
-      {user ? (
-        <>
-          <span style={{ marginRight: "10px" }}>Welcome, {user.username}</span>
-          <button onClick={handleSignOut}>Logout</button>
-        </>
-      ) : (
-        <button onClick={handleSignIn}>Login</button>
-      )}
+    <div className="flex items-center gap-2">
+      <SignedOut>
+        <SignInButton mode="modal">
+          <button className="px-4 py-2 rounded-lg bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors">
+            Sign In
+          </button>
+        </SignInButton>
+      </SignedOut>
+      <SignedIn>
+        <UserButton afterSignOutUrl="/" />
+      </SignedIn>
     </div>
   );
 }

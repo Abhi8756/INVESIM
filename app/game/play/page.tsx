@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore, Asset, GameEvent } from "@/lib/store";
 import { formatCurrency } from "@/lib/utils";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { CashChangeNotification } from "@/components/ui/cash-change-notification";
+import { GameCoachPanel } from "@/components/ui/game-coach-panel";
+import { useGameCoach } from "@/hooks/use-game-coach";
 import { toast } from 'react-toastify';
-import { useUser } from '@clerk/nextjs';
-import { useRouter } from 'next/navigation';
 
 // Base return rates for investment options - Traditional investments only (4 cards)
 const baseInvestmentOptions: { name: string; asset: Asset; baseReturnRate: number }[] = [
@@ -61,9 +63,12 @@ export default function GamePlay() {
     difficulty,
   } = useGameStore();
 
-  const { user } = useUser();
+  const { user } = useAuth();
   const router = useRouter();
 
+  // Game Coach Hook
+  const { advice, isLoadingAdvice, requestCoachAdvice, clearAdvice } = useGameCoach();
+  const lastCoachRequestRef = useRef<number>(0);
   const animationFrameRef = useRef<number>();
   const [amounts, setAmounts] = useState<{ [key in Asset]?: number }>({});
   const [stockBuyQuantities, setStockBuyQuantities] = useState<{ [key: string]: number }>({});
@@ -165,6 +170,35 @@ export default function GamePlay() {
     }
     setPreviousCash(cash);
   }, [cash, previousCash]);
+
+  // Request coach advice periodically (every 30 seconds of game time, based on difficulty)
+  useEffect(() => {
+    if (gameTime < 60000 || isLoadingAdvice || showEventModal) return; // Don't request for first minute or if already loading
+    
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastCoachRequestRef.current;
+    
+    // Difficulty-based coach frequency
+    const requestIntervalMs = 
+      difficulty === 'easy' ? 30000 :      // Every 30 seconds
+      difficulty === 'medium' ? 45000 :   // Every 45 seconds
+      60000;                               // Every 60 seconds for hard
+    
+    if (timeSinceLastRequest > requestIntervalMs) {
+      lastCoachRequestRef.current = now;
+      requestCoachAdvice({
+        cash,
+        netWorth,
+        aiNetWorth,
+        year,
+        investments,
+        stocks,
+        cryptos,
+        monthlyNetIncome,
+        difficulty,
+      });
+    }
+  }, [gameTime, cash, netWorth, aiNetWorth, year, isLoadingAdvice, showEventModal, difficulty, investments, stocks, cryptos, monthlyNetIncome, requestCoachAdvice]);
 
   // Reset investment selector when modal closes and handle pause state
   useEffect(() => {
@@ -1769,6 +1803,13 @@ export default function GamePlay() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Game Coach Panel */}
+      <GameCoachPanel
+        advice={advice}
+        isLoading={isLoadingAdvice}
+        onDismiss={clearAdvice}
+      />
     </div>
   );
 }

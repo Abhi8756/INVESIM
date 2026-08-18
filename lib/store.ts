@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { marketEvents, MarketEvent, getMarketEventForYear, applyMarketEventEffects } from "./market-events";
 
 // Types
 export type Difficulty = "easy" | "medium" | "hard";
@@ -60,6 +61,8 @@ export type GameState = {
   gameTime: number; // Game time that doesn't advance when paused
   lastAdvanceTime: number; // Last time we actually advanced the game
   lastEventTime: number; // Last time an event was triggered (in game time)
+  lastMarketEventYear: number; // Last year a market event was triggered
+  currentMarketEvent: MarketEvent | null; // Current market event affecting prices
   setPaused: (paused: boolean) => void; // Function to set pause state
   setDifficulty: (difficulty: Difficulty) => void;
   initializeGame: () => void;
@@ -250,31 +253,31 @@ const getAISettings = (difficulty: Difficulty) => {
   switch (difficulty) {
     case "easy":
       return { 
-        baseReturnRate: 0.10, // 10% base annual return (boosted from 8%)
-        expenseMultiplier: 0.0, // No expenses for AI
-        investmentRatio: 0.65, // 65% of net worth invested (increased)
-        volatility: 0.15 // 15% volatility - can have losses
+        baseReturnRate: 0.06, // 6% base annual return - more realistic
+        expenseMultiplier: 0.4, // AI has some expenses (40% of player)
+        investmentRatio: 0.50, // 50% of net worth invested - conservative
+        volatility: 0.25 // 25% volatility - can have significant losses
       };
     case "medium":
       return { 
-        baseReturnRate: 0.15, // 15% base annual return (boosted from 12%)
-        expenseMultiplier: 0.0, // No expenses for AI
-        investmentRatio: 0.80, // 80% of net worth invested (increased)
-        volatility: 0.20 // 20% volatility - more losses possible
+        baseReturnRate: 0.08, // 8% base annual return - still realistic
+        expenseMultiplier: 0.3, // AI has fewer expenses (30% of player)
+        investmentRatio: 0.65, // 65% of net worth invested - balanced
+        volatility: 0.30 // 30% volatility - more losses possible
       };
     case "hard":
       return { 
-        baseReturnRate: 0.20, // 20% base annual return (boosted from 16%)
-        expenseMultiplier: 0.0, // No expenses for AI
-        investmentRatio: 0.90, // 90% of net worth invested (increased)
-        volatility: 0.25 // 25% volatility - significant losses possible
+        baseReturnRate: 0.10, // 10% base annual return - good but not crazy
+        expenseMultiplier: 0.2, // AI has minimal expenses (20% of player)
+        investmentRatio: 0.75, // 75% of net worth invested - aggressive but fair
+        volatility: 0.35 // 35% volatility - significant losses possible
       };
     default:
       return { 
-        baseReturnRate: 0.15, 
-        expenseMultiplier: 0.75, 
-        investmentRatio: 0.80, 
-        volatility: 0.20 
+        baseReturnRate: 0.08, 
+        expenseMultiplier: 0.3, 
+        investmentRatio: 0.65, 
+        volatility: 0.30 
       };
   }
 };
@@ -325,6 +328,8 @@ export const useGameStore = create<GameState>()(
       gameTime: 0, // Game time that doesn't advance when paused
       lastAdvanceTime: 0, // Last time we actually advanced the game
       lastEventTime: 0, // Last time an event was triggered (in game time)
+      lastMarketEventYear: -1, // No market event yet
+      currentMarketEvent: null, // No active market event
       startTime: 0,
       currentTime: 0,
       timeScale: 1,
@@ -582,9 +587,10 @@ export const useGameStore = create<GameState>()(
           if (!state.showEventModal) {
             const aiSettings = getAISettings(state.difficulty);
             
-            // AI gets same monthly income as player (no expenses)
+            // AI gets same monthly income as player but has expenses
             const aiMonthlySalary = newSalary / 12; // AI has same salary progression
-            const aiMonthlyNetIncome = aiMonthlySalary; // Full salary since no expenses
+            const aiMonthlyExpenses = (state.monthlyExpenses || 0) * aiSettings.expenseMultiplier; // AI has some expenses
+            const aiMonthlyNetIncome = aiMonthlySalary - aiMonthlyExpenses; // Salary minus expenses
             
             // AI investment returns with volatility - can have losses!
             const aiInvestedAmount = newAiNetWorth * aiSettings.investmentRatio;
@@ -595,17 +601,17 @@ export const useGameStore = create<GameState>()(
             const aiReturnMultiplier = 1 + (volatilityFactor * aiSettings.volatility);
             const aiInvestmentReturns = aiBaseMonthlyReturn * aiReturnMultiplier;
             
-            // AI Bonus Events System - AI gets smart financial decisions and windfalls
+            // AI Bonus Events System - REDUCED frequency and amounts
             let aiMonthlyBonus = 0;
             
-            // Monthly chance for AI to get bonus events (similar to player income events)
-            if (Math.random() < 0.08) { // 8% chance per month for bonus
+            // Monthly chance for AI to get bonus events (much lower chance)
+            if (Math.random() < 0.03) { // 3% chance per month (reduced from 8%)
               const bonusTypes = [
-                { name: "Smart Investment Move", multiplier: 0.15 }, // 15% of net worth
-                { name: "Side Business Profit", multiplier: 0.08 }, // 8% of net worth  
-                { name: "Freelance Income", multiplier: 0.05 }, // 5% of net worth
-                { name: "Investment Windfall", multiplier: 0.12 }, // 12% of net worth
-                { name: "Property Appreciation", multiplier: 0.10 }, // 10% of net worth
+                { name: "Smart Investment Move", multiplier: 0.04 }, // 4% of net worth (reduced from 15%)
+                { name: "Side Business Profit", multiplier: 0.02 }, // 2% of net worth (reduced from 8%)
+                { name: "Freelance Income", multiplier: 0.015 }, // 1.5% of net worth (reduced from 5%)
+                { name: "Investment Windfall", multiplier: 0.03 }, // 3% of net worth (reduced from 12%)
+                { name: "Property Appreciation", multiplier: 0.025 }, // 2.5% of net worth (reduced from 10%)
               ];
               
               const bonusEvent = bonusTypes[Math.floor(Math.random() * bonusTypes.length)];
@@ -682,9 +688,40 @@ export const useGameStore = create<GameState>()(
               type: "income"
             });
             
-            // AI Yearly Performance Bonus - AI gets smart about major financial decisions
-            const aiYearlyBonus = newAiNetWorth * 0.12; // 12% of net worth as yearly bonus
+            // AI Yearly Performance Bonus - REDUCED significantly
+            const aiYearlyBonus = newAiNetWorth * 0.03; // 3% of net worth as yearly bonus (reduced from 12%)
             newAiNetWorth += aiYearlyBonus;
+          }
+          
+          // Check for market events at the start of each year
+          const currentYear = Math.floor(monthsElapsed / 12);
+          let currentMarketEvent = state.currentMarketEvent;
+          let lastMarketEventYear = state.lastMarketEventYear;
+          
+          if (currentYear > lastMarketEventYear && currentYear < 10) {
+            const difficultyEventFrequency = {
+              easy: 1.2,      // 20% more frequent
+              medium: 1.0,    // Normal frequency
+              hard: 0.7,      // 30% less frequent
+            };
+            
+            const marketEvent = getMarketEventForYear(currentYear, difficultyEventFrequency);
+            
+            if (marketEvent) {
+              // Apply market event effects to stock prices
+              updatedStocks = applyMarketEventEffects(marketEvent, updatedStocks);
+              updatedCryptos = applyMarketEventEffects(marketEvent, updatedCryptos);
+              updatedRealEstates = applyMarketEventEffects(marketEvent, updatedRealEstates);
+              
+              // Store the event for display
+              currentMarketEvent = marketEvent;
+              
+              // Show notification
+              console.log(`📰 Market Event: ${marketEvent.name} - ${marketEvent.description}`);
+            }
+            
+            // Mark that we've processed events for this year
+            lastMarketEventYear = currentYear;
           }
           
           // Calculate portfolio value with updated profits
@@ -717,6 +754,8 @@ export const useGameStore = create<GameState>()(
             lastAdvanceTime: now,
             timeScale: newTimeScale,
             aiNetWorth: newAiNetWorth, // Use the monthly calculated AI growth
+            currentMarketEvent: currentMarketEvent, // Add market event
+            lastMarketEventYear: lastMarketEventYear, // Track last market event year
           });
         } else {
           // Always update the time-based state even if no month change

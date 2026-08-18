@@ -2,8 +2,12 @@
 
 import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
-import { useUser, SignInButton } from '@clerk/nextjs'
+import { useAuth } from "@clerk/nextjs"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { useGameSummary } from "@/hooks/use-game-coach"
+import { AIGameSummary } from "@/components/ui/ai-game-summary"
+import { useGameStore } from "@/lib/store"
 
 interface GameResult {
   userId: string
@@ -12,24 +16,53 @@ interface GameResult {
   aiScore: number
   result: 'win' | 'loss'
   difficulty: 'easy' | 'medium' | 'hard'
+  investments?: Record<string, number>
+  investmentProfits?: Record<string, number>
 }
 
 export default function Results() {
-  const { user, isSignedIn } = useUser();
+  const { user: clerkUser } = useAuth();
+  const { summary, generateSummary } = useGameSummary();
+  const { resetGame } = useGameStore();
+  const router = useRouter();
   const [results, setResults] = useState<GameResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastGameResult, setLastGameResult] = useState<GameResult | null>(null);
+  const [showSummary, setShowSummary] = useState(false);
 
   useEffect(() => {
-    if (isSignedIn && user) {
+    if (clerkUser) {
       // Load user-specific results
-      const userResultsKey = `gameResults_${user.id}`;
+      const userResultsKey = `gameResults_${clerkUser.id}`;
       const storedResults = localStorage.getItem(userResultsKey);
       if (storedResults) {
-        setResults(JSON.parse(storedResults));
+        const parsedResults = JSON.parse(storedResults);
+        setResults(parsedResults);
+        
+        // Get the most recent game result
+        if (parsedResults.length > 0) {
+          const lastResult = parsedResults[parsedResults.length - 1];
+          setLastGameResult(lastResult);
+          setShowSummary(true);
+          
+          // Generate AI summary in the background
+          generateSummary({
+            playerScore: lastResult.playerScore,
+            aiScore: lastResult.aiScore,
+            result: lastResult.result,
+            yearsPlayed: 10,
+            difficulty: lastResult.difficulty,
+            investmentBreakdown: lastResult.investments || {},
+            bestPerformingAsset: 'Nifty 50',
+            worstPerformingAsset: 'Savings',
+            totalInvested: 500000,
+            totalReturns: lastResult.playerScore - 100000,
+          });
+        }
       }
     }
     setLoading(false);
-  }, [isSignedIn, user]);
+  }, [clerkUser, generateSummary]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -68,25 +101,24 @@ export default function Results() {
     );
   }
 
-  if (!isSignedIn) {
+  // Show AI summary for last game
+  if (showSummary && lastGameResult) {
     return (
-      <div className="min-h-screen bg-background text-foreground p-4">
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 dark:to-primary/10 text-foreground p-4">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-3xl font-bold mb-6 font-orbitron text-primary">Past Game Results</h1>
-          
-          <div className="bg-card/50 backdrop-blur-sm border border-border rounded-xl p-8 text-center">
-            <div className="text-6xl mb-4">🔒</div>
-            <h2 className="text-2xl font-semibold mb-4 font-orbitron">Sign In Required</h2>
-            <p className="text-muted-foreground mb-6">
-              You need to be signed in to view your past game results. Your game history is saved 
-              automatically when you're signed in and complete games.
-            </p>
-            <SignInButton mode="modal">
-              <Button size="lg" className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70">
-                Sign In to View Results
-              </Button>
-            </SignInButton>
-          </div>
+          <AIGameSummary
+            summaryText={summary.text}
+            isLoading={summary.isLoading}
+            playerScore={lastGameResult.playerScore}
+            aiScore={lastGameResult.aiScore}
+            result={lastGameResult.result}
+            difficulty={lastGameResult.difficulty}
+            onPlayAgain={() => {
+              resetGame();
+              router.push('/game');
+            }}
+            onViewResults={() => setShowSummary(false)}
+          />
         </div>
       </div>
     );

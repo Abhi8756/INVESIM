@@ -5,7 +5,6 @@ import type React from "react";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import AmplifyProvider from "@/components/AmplifyProvider"; // <-- new import
 
 export default function RootLayout({
   children,
@@ -32,32 +31,30 @@ export default function RootLayout({
           />
         </head>
         <body className="min-h-screen" suppressHydrationWarning>
-          <AmplifyProvider> {/* 👈 wraps app in Amplify context */}
-            <ThemeProvider
-              attribute="class"
-              defaultTheme="system"
-              enableSystem
-              disableTransitionOnChange
-            >
-              <Navigation />
-              <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-3 py-">
-                {children}
-              </main>
-              <ToastContainer
-                position="top-right"
-                autoClose={3000}
-                hideProgressBar={false}
-                newestOnTop={false}
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-                theme="colored"
-                className="mt-16"
-              />
-            </ThemeProvider>
-          </AmplifyProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <Navigation />
+            <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-3 py-">
+              {children}
+            </main>
+            <ToastContainer
+              position="top-right"
+              autoClose={3000}
+              hideProgressBar={false}
+              newestOnTop={false}
+              closeOnClick
+              rtl={false}
+              pauseOnFocusLoss
+              draggable
+              pauseOnHover
+              theme="colored"
+              className="mt-16"
+            />
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>

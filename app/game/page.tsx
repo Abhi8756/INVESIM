@@ -5,6 +5,9 @@ import { useState } from "react"
 import { ChevronRight, AlertTriangle, Trophy, Target, Coins, TrendingUp, Timer, Users, DollarSign, BarChart } from "lucide-react"
 import Link from "next/link"
 import { useGameStore } from "@/lib/store"
+import { useAuth } from "@clerk/nextjs"
+import { useRouter } from "next/navigation"
+import { useEffect } from "react"
 
 const difficulties = [
   {
@@ -88,6 +91,37 @@ export default function GamePage() {
   const [selected, setSelected] = useState<string | null>(null)
   const [showDetails, setShowDetails] = useState<string | null>(null)
   const { setDifficulty, initializeGame } = useGameStore()
+  const { isSignedIn, isLoaded } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      router.push('/sign-in')
+    }
+  }, [isSignedIn, isLoaded, router])
+
+  // Show loading while checking auth
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg font-semibold">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render game if not signed in
+  if (!isSignedIn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg font-semibold">Authentication required</p>
+          <p className="text-muted-foreground">Redirecting to sign in...</p>
+        </div>
+      </div>
+    )
+  }
 
   const handleStartGame = () => {
     if (selected) {
