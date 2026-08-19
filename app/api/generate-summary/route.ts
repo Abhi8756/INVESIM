@@ -55,7 +55,7 @@ Make it personalized, insightful, and focused on Indian financial instruments. B
 
     console.log('Calling Groq API...')
     const message = await groq.chat.completions.create({
-      model: 'llama-3.1-70b-versatile',
+      model: 'openai/gpt-oss-120b', // Current working model (Aug 2026)
       max_tokens: 1500,
       messages: [
         {

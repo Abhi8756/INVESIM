@@ -37,12 +37,6 @@ export function InvestmentTransactionReport({
   const [expandedAssets, setExpandedAssets] = useState<Set<string>>(new Set())
   const [sortBy, setSortBy] = useState<'time' | 'amount' | 'asset'>('time')
 
-  // Debug logging
-  console.log('🔍 InvestmentTransactionReport Debug:')
-  console.log('📊 Transactions received:', transactions)
-  console.log('💰 Final investments:', finalInvestments)
-  console.log('📈 Final profits:', finalProfits)
-
   // Group transactions by asset
   const transactionsByAsset = transactions.reduce((acc, transaction) => {
     if (!acc[transaction.asset]) {
@@ -51,8 +45,6 @@ export function InvestmentTransactionReport({
     acc[transaction.asset].push(transaction)
     return acc
   }, {} as Record<string, InvestmentTransaction[]>)
-
-  console.log('📋 Transactions by asset:', transactionsByAsset)
 
   // Calculate performance metrics per asset
   const assetPerformance = Object.keys(transactionsByAsset).map(asset => {
@@ -87,9 +79,6 @@ export function InvestmentTransactionReport({
   const sortedAssets = assetPerformance
     .filter(asset => asset.transactionCount > 0)
     .sort((a, b) => b.returnPercentage - a.returnPercentage)
-
-  console.log('🎯 Asset performance calculated:', assetPerformance)
-  console.log('✅ Sorted assets (after filtering):', sortedAssets)
 
   const toggleAssetExpansion = (asset: string) => {
     const newExpanded = new Set(expandedAssets)

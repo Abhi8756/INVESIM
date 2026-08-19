@@ -1046,7 +1046,10 @@ export const useGameStore = create<GameState>()(
         if (!stock) return;
         
         const currentQuantity = state.stockQuantities[stockSymbol] || 0;
-        if (quantity > currentQuantity) return; // Don't have enough shares
+        if (quantity > currentQuantity) {
+          console.log(`Cannot sell ${quantity} ${stockSymbol}, only have ${currentQuantity}`);
+          return; // Don't have enough shares
+        }
         
         const saleValue = stock.currentPrice * quantity;
         
@@ -1058,7 +1061,7 @@ export const useGameStore = create<GameState>()(
           ...state,
           stockQuantities: {
             ...state.stockQuantities,
-            [stockSymbol]: currentQuantity - quantity
+            [stockSymbol]: Math.max(0, (state.stockQuantities[stockSymbol] || 0) - quantity)
           }
         }));
       },
@@ -1088,12 +1091,23 @@ export const useGameStore = create<GameState>()(
       sellCrypto: (cryptoSymbol: string, quantity: number) => {
         const state = get();
         const crypto = state.cryptos[cryptoSymbol];
-        if (!crypto) return;
+        if (!crypto) {
+          console.log(`Crypto ${cryptoSymbol} not found`);
+          return;
+        }
         
         const currentQuantity = state.cryptoQuantities[cryptoSymbol] || 0;
-        if (quantity > currentQuantity) return; // Don't have enough coins
+        console.log(`Selling ${quantity} ${cryptoSymbol}, have ${currentQuantity}`);
         
-        const saleValue = crypto.currentPrice * quantity;
+        // Allow selling even if slightly over (due to rounding)
+        const actualQuantity = Math.min(quantity, currentQuantity);
+        if (actualQuantity <= 0) {
+          console.log(`No ${cryptoSymbol} to sell`);
+          return;
+        }
+        
+        const saleValue = crypto.currentPrice * actualQuantity;
+        console.log(`Sale value: ${saleValue} for ${actualQuantity} units`);
         
         // Use the withdraw function to properly log the transaction
         get().withdraw(cryptoSymbol as Asset, saleValue);
@@ -1103,7 +1117,7 @@ export const useGameStore = create<GameState>()(
           ...state,
           cryptoQuantities: {
             ...state.cryptoQuantities,
-            [cryptoSymbol]: currentQuantity - quantity
+            [cryptoSymbol]: Math.max(0, (state.cryptoQuantities[cryptoSymbol] || 0) - actualQuantity)
           }
         }));
       },

@@ -5,7 +5,7 @@ import { motion } from "framer-motion"
 import { useAuth } from "@clerk/nextjs"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Download, ArrowRight, Trash2 } from "lucide-react"
+import { Download, ArrowRight, Trash2, Loader2 } from "lucide-react"
 import { generateGameSummaryPDF } from "@/lib/pdf-generator"
 import { generateGameSummary } from "@/lib/groq-client"
 
@@ -27,38 +27,48 @@ interface GameResult {
 }
 
 export default function PastResults() {
-  const { user: clerkUser, isLoaded } = useAuth()
+  const { userId, isSignedIn, isLoaded } = useAuth()
   const [games, setGames] = useState<GameResult[]>([])
   const [loading, setLoading] = useState(true)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!isLoaded) return
+    console.log('🔍 Auth Status:', { userId, isSignedIn, isLoaded })
+    
+    if (!isLoaded) {
+      console.log('⏳ Waiting for auth...')
+      return
+    }
 
-    console.log('🔍 Past Results Debug:')
-    console.log('👤 Clerk User:', clerkUser)
-    console.log('📱 Is Loaded:', isLoaded)
-
-    if (clerkUser) {
-      const userResultsKey = `gameResults_${clerkUser.id}`
-      console.log('🔑 Storage key:', userResultsKey)
+    if (isSignedIn && userId) {
+      console.log('✅ User signed in with ID:', userId)
+      const userResultsKey = `gameResults_${userId}`
+      console.log('🔑 Checking localStorage key:', userResultsKey)
       
-      const storedResults = localStorage.getItem(userResultsKey)
-      console.log('💾 Raw stored results:', storedResults)
-
-      if (storedResults) {
-        const parsedResults = JSON.parse(storedResults)
-        console.log('📊 Parsed results:', parsedResults)
-        console.log('📈 Results count:', parsedResults.length)
-        setGames(parsedResults.reverse()) // Show newest first
+      // Direct localStorage access
+      const storedData = localStorage.getItem(userResultsKey)
+      console.log('💾 Raw data:', storedData)
+      
+      if (storedData) {
+        try {
+          const parsedGames = JSON.parse(storedData)
+          console.log('📊 Parsed games:', parsedGames)
+          setGames(Array.isArray(parsedGames) ? parsedGames.reverse() : [])
+        } catch (e) {
+          console.error('❌ Parse error:', e)
+          setGames([])
+        }
       } else {
-        console.log('❌ No stored results found')
+        console.log('❌ No data found in localStorage')
+        setGames([])
       }
     } else {
-      console.log('⚠️ No clerk user found')
+      console.log('❌ User not signed in')
+      setGames([])
     }
+    
     setLoading(false)
-  }, [clerkUser, isLoaded])
+  }, [userId, isSignedIn, isLoaded])
 
   const handleDownloadPDF = async (game: GameResult) => {
     try {
@@ -111,10 +121,10 @@ export default function PastResults() {
   }
 
   const handleDeleteGame = (gameId: string) => {
-    if (!clerkUser) return
+    if (!userId) return
     if (!confirm('Are you sure you want to delete this game record?')) return
 
-    const userResultsKey = `gameResults_${clerkUser.id}`
+    const userResultsKey = `gameResults_${userId}`
     const storedResults = localStorage.getItem(userResultsKey)
     if (storedResults) {
       const results = JSON.parse(storedResults).filter((g: GameResult) => g.gameId !== gameId)
@@ -123,10 +133,36 @@ export default function PastResults() {
     }
   }
 
-  if (loading) {
+  if (loading || !isLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-lg font-semibold">Loading games...</p>
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
+          <p className="text-lg font-semibold">
+            {!isLoaded ? 'Loading authentication...' : 'Loading games...'}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isSignedIn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center"
+        >
+          <h1 className="text-3xl font-bold mb-4">Authentication Required</h1>
+          <p className="text-muted-foreground mb-6">Please sign in to view your game history</p>
+          <Link href="/sign-in">
+            <Button className="gap-2">
+              Sign In
+              <ArrowRight className="w-4 h-4" />
+            </Button>
+          </Link>
+        </motion.div>
       </div>
     )
   }
