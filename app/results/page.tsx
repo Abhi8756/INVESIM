@@ -34,40 +34,43 @@ export default function Results() {
     }
 
     if (clerkUser) {
-      const userResultsKey = `gameResults_${clerkUser.id}`
-      const storedResults = localStorage.getItem(userResultsKey)
-      console.log('Looking for results with key:', userResultsKey)
-      console.log('Stored results:', storedResults)
-      
-      if (storedResults) {
-        const parsedResults = JSON.parse(storedResults)
-        setResults(parsedResults)
+      // Only access localStorage on client side
+      if (typeof window !== 'undefined') {
+        const userResultsKey = `gameResults_${clerkUser.id}`
+        const storedResults = localStorage.getItem(userResultsKey)
+        console.log('Looking for results with key:', userResultsKey)
+        console.log('Stored results:', storedResults)
+        
+        if (storedResults) {
+          const parsedResults = JSON.parse(storedResults)
+          setResults(parsedResults)
 
-        if (parsedResults.length > 0) {
-          const lastResult = parsedResults[parsedResults.length - 1]
-          setLastGameResult(lastResult)
-          console.log('Last game result:', lastResult)
+          if (parsedResults.length > 0) {
+            const lastResult = parsedResults[parsedResults.length - 1]
+            setLastGameResult(lastResult)
+            console.log('Last game result:', lastResult)
 
-          // Prepare game stats for AI analysis
-          const investmentBreakdown = lastResult.investments || {}
-          const totalInvested = Object.values(investmentBreakdown).reduce((a: number, b: number) => a + b, 0)
-          const bestAsset = Object.entries(investmentBreakdown).sort(([, a]: any, [, b]: any) => b - a)[0]?.[0] || 'Unknown'
-          const worstAsset = Object.entries(investmentBreakdown).sort(([, a]: any, [, b]: any) => a - b)[0]?.[0] || 'Unknown'
+            // Prepare game stats for AI analysis
+            const investmentBreakdown = lastResult.investments || {}
+            const totalInvested = Object.values(investmentBreakdown).reduce((a: number, b: number) => a + b, 0)
+            const bestAsset = Object.entries(investmentBreakdown).sort(([, a]: any, [, b]: any) => b - a)[0]?.[0] || 'Unknown'
+            const worstAsset = Object.entries(investmentBreakdown).sort(([, a]: any, [, b]: any) => a - b)[0]?.[0] || 'Unknown'
 
-          const stats = {
-            playerScore: lastResult.playerScore,
-            aiScore: lastResult.aiScore,
-            result: lastResult.result,
-            yearsPlayed: 10,
-            difficulty: lastResult.difficulty,
-            investmentBreakdown,
-            bestPerformingAsset: bestAsset,
-            worstPerformingAsset: worstAsset,
-            totalInvested,
-            totalReturns: lastResult.playerScore - totalInvested,
+            const stats = {
+              playerScore: lastResult.playerScore,
+              aiScore: lastResult.aiScore,
+              result: lastResult.result,
+              yearsPlayed: 10,
+              difficulty: lastResult.difficulty,
+              investmentBreakdown,
+              bestPerformingAsset: bestAsset,
+              worstPerformingAsset: worstAsset,
+              totalInvested,
+              totalReturns: lastResult.playerScore - totalInvested,
+            }
+            setGameStats(stats)
+            console.log('Game stats prepared:', stats)
           }
-          setGameStats(stats)
-          console.log('Game stats prepared:', stats)
         }
       }
       setLoading(false)
