@@ -24,6 +24,24 @@ export type GameEvent = {
   type: "expense" | "income" | "opportunity";
 };
 
+export type InvestmentTransaction = {
+  id: string;
+  timestamp: number; // Game time in milliseconds
+  year: number; // Game year (0-10)
+  month: number; // Game month (0-11)
+  type: "buy" | "sell";
+  asset: Asset;
+  assetName: string;
+  amount: number; // Amount invested/withdrawn
+  quantity?: number; // For stocks/crypto/real estate
+  rate: number; // Rate/price at time of transaction
+  marketConditions?: {
+    currentEvent?: string;
+    aiNetWorth: number;
+    playerNetWorth: number;
+  };
+};
+
 // Game State Type
 export type GameState = {
   startTime: number;
@@ -33,6 +51,7 @@ export type GameState = {
   netWorth: number;
   investments: Record<Asset, number>; // Principal amounts only
   investmentProfits: Record<Asset, number>; // Accumulated profits/returns
+  transactionHistory: InvestmentTransaction[]; // Detailed transaction log
   stocks: Record<string, Stock>; // Stock market data
   cryptos: Record<string, Stock>; // Crypto market data
   realEstates: Record<string, Stock>; // Real estate market data
@@ -340,6 +359,7 @@ export const useGameStore = create<GameState>()(
       passiveIncome: 0,
       investments: { savings: 0, fixedDeposit: 0, nifty50: 0, gold: 0, realestate: 0, crypto: 0, reliance: 0, tcs: 0, hdfc: 0, infosys: 0, bitcoin: 0, ethereum: 0, cardano: 0, polygon: 0, mumbai: 0, bangalore: 0, delhi: 0, pune: 0 },
       investmentProfits: { savings: 0, fixedDeposit: 0, nifty50: 0, gold: 0, realestate: 0, crypto: 0, reliance: 0, tcs: 0, hdfc: 0, infosys: 0, bitcoin: 0, ethereum: 0, cardano: 0, polygon: 0, mumbai: 0, bangalore: 0, delhi: 0, pune: 0 },
+      transactionHistory: [],
       stocks: initialStocks,
       cryptos: initialCryptos,
       realEstates: initialRealEstates,
@@ -790,15 +810,110 @@ export const useGameStore = create<GameState>()(
 
       // Invest
       invest: (asset, amount) => {
+        const state = get();
+        const gameTime = state.gameTime;
+        const progress = gameTime / 600000; // 600000ms = 10 minutes
+        const year = Math.floor(progress * 10);
+        const month = Math.floor((progress * 10 * 12) % 12);
+        
+        // Get asset name
+        const assetNames: Record<Asset, string> = {
+          savings: "Savings Account",
+          fixedDeposit: "Fixed Deposit",
+          nifty50: "Nifty 50 Index",
+          gold: "Gold",
+          realestate: "Real Estate",
+          crypto: "Cryptocurrency",
+          reliance: "Reliance Industries",
+          tcs: "Tata Consultancy Services", 
+          hdfc: "HDFC Bank",
+          infosys: "Infosys",
+          bitcoin: "Bitcoin",
+          ethereum: "Ethereum",
+          cardano: "Cardano",
+          polygon: "Polygon",
+          mumbai: "Mumbai Real Estate",
+          bangalore: "Bangalore Real Estate", 
+          delhi: "Delhi Real Estate",
+          pune: "Pune Real Estate"
+        };
+
+        // Get current rate
+        let currentRate = investmentReturns[asset] || 0;
+        if (state.stocks[asset]) {
+          currentRate = state.stocks[asset].currentPrice;
+        } else if (state.cryptos[asset]) {
+          currentRate = state.cryptos[asset].currentPrice;
+        } else if (state.realEstates[asset]) {
+          currentRate = state.realEstates[asset].currentPrice;
+        }
+
+        // Create transaction record
+        const transaction: InvestmentTransaction = {
+          id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          timestamp: gameTime,
+          year,
+          month,
+          type: "buy",
+          asset,
+          assetName: assetNames[asset],
+          amount,
+          rate: currentRate,
+          marketConditions: {
+            currentEvent: state.currentEvent?.title,
+            aiNetWorth: state.aiNetWorth,
+            playerNetWorth: state.netWorth
+          }
+        };
+
         set((state) => ({
           investments: { ...state.investments, [asset]: state.investments[asset] + amount },
           cash: state.cash - amount,
+          transactionHistory: [...state.transactionHistory, transaction],
         }));
         get().updateNetWorth();
       },
 
       // Withdraw
       withdraw: (asset, amount) => {
+        const state = get();
+        const gameTime = state.gameTime;
+        const progress = gameTime / 600000;
+        const year = Math.floor(progress * 10);
+        const month = Math.floor((progress * 10 * 12) % 12);
+        
+        // Get asset name
+        const assetNames: Record<Asset, string> = {
+          savings: "Savings Account",
+          fixedDeposit: "Fixed Deposit", 
+          nifty50: "Nifty 50 Index",
+          gold: "Gold",
+          realestate: "Real Estate",
+          crypto: "Cryptocurrency",
+          reliance: "Reliance Industries",
+          tcs: "Tata Consultancy Services",
+          hdfc: "HDFC Bank", 
+          infosys: "Infosys",
+          bitcoin: "Bitcoin",
+          ethereum: "Ethereum",
+          cardano: "Cardano",
+          polygon: "Polygon",
+          mumbai: "Mumbai Real Estate",
+          bangalore: "Bangalore Real Estate",
+          delhi: "Delhi Real Estate", 
+          pune: "Pune Real Estate"
+        };
+
+        // Get current rate
+        let currentRate = investmentReturns[asset] || 0;
+        if (state.stocks[asset]) {
+          currentRate = state.stocks[asset].currentPrice;
+        } else if (state.cryptos[asset]) {
+          currentRate = state.cryptos[asset].currentPrice;
+        } else if (state.realEstates[asset]) {
+          currentRate = state.realEstates[asset].currentPrice;
+        }
+
         set((state) => {
           const currentPrincipal = state.investments[asset];
           const currentProfits = state.investmentProfits[asset];
@@ -815,6 +930,24 @@ export const useGameStore = create<GameState>()(
           
           const principalWithdrawal = amount * principalRatio;
           const profitWithdrawal = amount * profitRatio;
+
+          // Create transaction record
+          const transaction: InvestmentTransaction = {
+            id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: gameTime,
+            year,
+            month,
+            type: "sell",
+            asset,
+            assetName: assetNames[asset],
+            amount,
+            rate: currentRate,
+            marketConditions: {
+              currentEvent: state.currentEvent?.title,
+              aiNetWorth: state.aiNetWorth,
+              playerNetWorth: state.netWorth
+            }
+          };
           
           return {
             ...state,
@@ -827,6 +960,7 @@ export const useGameStore = create<GameState>()(
               [asset]: Math.max(0, currentProfits - profitWithdrawal) 
             },
             cash: state.cash + amount,
+            transactionHistory: [...state.transactionHistory, transaction],
           };
         });
         get().updateNetWorth();
@@ -886,134 +1020,92 @@ export const useGameStore = create<GameState>()(
 
       // Stock Trading Functions
       buyStock: (stockSymbol: string, quantity: number) => {
-        set((state) => {
-          const stock = state.stocks[stockSymbol];
-          if (!stock) return state;
-          
-          const totalCost = stock.currentPrice * quantity;
-          if (totalCost > state.cash) return state; // Not enough cash
-          
-          const asset = stockSymbol as Asset;
-          return {
-            ...state,
-            investments: { 
-              ...state.investments, 
-              [asset]: state.investments[asset] + totalCost 
-            },
-            stockQuantities: {
-              ...state.stockQuantities,
-              [stockSymbol]: (state.stockQuantities[stockSymbol] || 0) + quantity
-            },
-            cash: state.cash - totalCost,
-          };
-        });
-        get().updateNetWorth();
+        const state = get();
+        const stock = state.stocks[stockSymbol];
+        if (!stock) return;
+        
+        const totalCost = stock.currentPrice * quantity;
+        if (totalCost > state.cash) return; // Not enough cash
+        
+        // Use the invest function to properly log the transaction
+        get().invest(stockSymbol as Asset, totalCost);
+        
+        // Update stock quantities
+        set((state) => ({
+          ...state,
+          stockQuantities: {
+            ...state.stockQuantities,
+            [stockSymbol]: (state.stockQuantities[stockSymbol] || 0) + quantity
+          }
+        }));
       },
 
       sellStock: (stockSymbol: string, quantity: number) => {
-        set((state) => {
-          const stock = state.stocks[stockSymbol];
-          if (!stock) return state;
-          
-          const currentQuantity = state.stockQuantities[stockSymbol] || 0;
-          if (quantity > currentQuantity) return state; // Don't have enough shares
-          
-          const asset = stockSymbol as Asset;
-          const saleValue = stock.currentPrice * quantity;
-          
-          // Calculate average cost per share
-          const totalInvestment = state.investments[asset] || 0;
-          const totalShares = currentQuantity;
-          const avgCostPerShare = totalShares > 0 ? totalInvestment / totalShares : 0;
-          
-          // Calculate principal and profit portions
-          const principalWithdrawal = avgCostPerShare * quantity;
-          const profitFromSale = saleValue - principalWithdrawal;
-          
-          return {
-            ...state,
-            investments: { 
-              ...state.investments, 
-              [asset]: Math.max(0, totalInvestment - principalWithdrawal) 
-            },
-            investmentProfits: { 
-              ...state.investmentProfits, 
-              [asset]: (state.investmentProfits[asset] || 0) + profitFromSale
-            },
-            stockQuantities: {
-              ...state.stockQuantities,
-              [stockSymbol]: currentQuantity - quantity
-            },
-            cash: state.cash + saleValue,
-          };
-        });
-        get().updateNetWorth();
+        const state = get();
+        const stock = state.stocks[stockSymbol];
+        if (!stock) return;
+        
+        const currentQuantity = state.stockQuantities[stockSymbol] || 0;
+        if (quantity > currentQuantity) return; // Don't have enough shares
+        
+        const saleValue = stock.currentPrice * quantity;
+        
+        // Use the withdraw function to properly log the transaction
+        get().withdraw(stockSymbol as Asset, saleValue);
+        
+        // Update stock quantities
+        set((state) => ({
+          ...state,
+          stockQuantities: {
+            ...state.stockQuantities,
+            [stockSymbol]: currentQuantity - quantity
+          }
+        }));
       },
 
       // Crypto Trading Functions
       buyCrypto: (cryptoSymbol: string, quantity: number) => {
-        set((state) => {
-          const crypto = state.cryptos[cryptoSymbol];
-          if (!crypto) return state;
-          
-          const totalCost = crypto.currentPrice * quantity;
-          if (totalCost > state.cash) return state; // Not enough cash
-          
-          const asset = cryptoSymbol as Asset;
-          return {
-            ...state,
-            investments: { 
-              ...state.investments, 
-              [asset]: state.investments[asset] + totalCost 
-            },
-            cryptoQuantities: {
-              ...state.cryptoQuantities,
-              [cryptoSymbol]: (state.cryptoQuantities[cryptoSymbol] || 0) + quantity
-            },
-            cash: state.cash - totalCost,
-          };
-        });
-        get().updateNetWorth();
+        const state = get();
+        const crypto = state.cryptos[cryptoSymbol];
+        if (!crypto) return;
+        
+        const totalCost = crypto.currentPrice * quantity;
+        if (totalCost > state.cash) return; // Not enough cash
+        
+        // Use the invest function to properly log the transaction
+        get().invest(cryptoSymbol as Asset, totalCost);
+        
+        // Update crypto quantities
+        set((state) => ({
+          ...state,
+          cryptoQuantities: {
+            ...state.cryptoQuantities,
+            [cryptoSymbol]: (state.cryptoQuantities[cryptoSymbol] || 0) + quantity
+          }
+        }));
       },
 
       sellCrypto: (cryptoSymbol: string, quantity: number) => {
-        set((state) => {
-          const crypto = state.cryptos[cryptoSymbol];
-          if (!crypto) return state;
-          
-          const currentQuantity = state.cryptoQuantities[cryptoSymbol] || 0;
-          if (quantity > currentQuantity) return state; // Don't have enough coins
-          
-          const asset = cryptoSymbol as Asset;
-          const saleValue = crypto.currentPrice * quantity;
-          
-          // Calculate average cost per coin
-          const totalInvestment = state.investments[asset] || 0;
-          const totalCoins = currentQuantity;
-          const avgCostPerCoin = totalCoins > 0 ? totalInvestment / totalCoins : 0;
-          
-          // Calculate principal and profit portions
-          const principalWithdrawal = avgCostPerCoin * quantity;
-          const profitFromSale = saleValue - principalWithdrawal;
-          
-          return {
-            ...state,
-            investments: { 
-              ...state.investments, 
-              [asset]: Math.max(0, totalInvestment - principalWithdrawal) 
-            },
-            investmentProfits: { 
-              ...state.investmentProfits, 
-              [asset]: (state.investmentProfits[asset] || 0) + profitFromSale
-            },
-            cryptoQuantities: {
-              ...state.cryptoQuantities,
-              [cryptoSymbol]: currentQuantity - quantity
-            },
-            cash: state.cash + saleValue,
-          };
-        });
-        get().updateNetWorth();
+        const state = get();
+        const crypto = state.cryptos[cryptoSymbol];
+        if (!crypto) return;
+        
+        const currentQuantity = state.cryptoQuantities[cryptoSymbol] || 0;
+        if (quantity > currentQuantity) return; // Don't have enough coins
+        
+        const saleValue = crypto.currentPrice * quantity;
+        
+        // Use the withdraw function to properly log the transaction
+        get().withdraw(cryptoSymbol as Asset, saleValue);
+        
+        // Update crypto quantities
+        set((state) => ({
+          ...state,
+          cryptoQuantities: {
+            ...state.cryptoQuantities,
+            [cryptoSymbol]: currentQuantity - quantity
+          }
+        }));
       },
 
       // Buy Real Estate

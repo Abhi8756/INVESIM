@@ -73,41 +73,30 @@ export async function generateGameSummary(
     totalInvested: number;
     totalReturns: number;
   }
-): Promise<string> {
-  // Static summary based on game results
-  const margin = Math.abs(gameStats.playerScore - gameStats.aiScore);
-  const marginPercent = (margin / gameStats.aiScore) * 100;
-  
-  const summaries = {
-    winByLarge: [
-      `Outstanding performance! You dominated by ₹${margin.toLocaleString('en-IN')} (${marginPercent.toFixed(1)}%). Your ${gameStats.bestPerformingAsset} strategy was flawless. In the next game, diversify earlier to compound gains faster.`,
-      `Masterful investing! You crushed the AI with smart decisions across all asset classes. Your key strength was timing entries into ${gameStats.bestPerformingAsset}. Next time, try adding more volatility for even bigger returns.`,
-      `Exceptional portfolio management! You beat the AI convincingly. The secret was disciplined rebalancing and avoiding ${gameStats.worstPerformingAsset}. Keep this winning formula going!`,
-    ],
-    winBySmall: [
-      `Victory! You edged out the AI by ₹${margin.toLocaleString('en-IN')}. Your ${gameStats.bestPerformingAsset} picks were solid, but you hesitated too much on ${gameStats.worstPerformingAsset}. Be bolder next time!`,
-      `Close match, but you won! Your consistency paid off. Focus on learning why ${gameStats.worstPerformingAsset} underperformed—avoiding one bad asset class cost you ₹${margin.toLocaleString('en-IN')}. Next game, diversify fully.`,
-      `Narrow victory! You beat the odds with smart monthly contributions. You've got the fundamentals down—now work on tactical timing to increase your winning margin.`,
-    ],
-    lossBySmall: [
-      `Tough loss by just ₹${margin.toLocaleString('en-IN')}! You were so close. Your ${gameStats.bestPerformingAsset} bets were great, but you missed growth in other sectors. Next game, rebalance more aggressively when down.`,
-      `Nearly there! Just ₹${margin.toLocaleString('en-IN')} separated you from victory. You had strong fundamentals—just needed more conviction in volatile bets when trailing the AI.`,
-      `Close call! You played it too safe. Your ₹${gameStats.totalInvested.toLocaleString('en-IN')} investment generated solid returns, but the AI took more calculated risks. Be more aggressive on your next run!`,
-    ],
-    lossByLarge: [
-      `The AI outpaced you significantly. You played defensively, which is smart for learning, but next time take more calculated risks. Focus on understanding why ${gameStats.bestPerformingAsset} worked—that's your edge.`,
-      `Big gap between you and the AI, but don't be discouraged. You learned valuable lessons. Next game, commit to a clear investment thesis and stick with it.`,
-      `The market favored the AI's strategy this time. Analyze your best and worst performers—${gameStats.bestPerformingAsset} vs ${gameStats.worstPerformingAsset}—and swap your approach next time!`,
-    ]
-  };
-  
-  let category: keyof typeof summaries;
-  if (gameStats.result === 'win') {
-    category = marginPercent > 10 ? 'winByLarge' : 'winBySmall';
-  } else {
-    category = marginPercent > 10 ? 'lossByLarge' : 'lossBySmall';
+): Promise<any> {
+  try {
+    const response = await fetch('/api/generate-summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gameStats }),
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to generate summary')
+    }
+
+    const data = await response.json()
+    return data.analysis
+  } catch (error) {
+    console.error('Error generating summary:', error)
+    // Return default analysis if API fails
+    return {
+      summary: 'Game completed! Check your investment performance above.',
+      strengths: ['Completed the full 10-year simulation', 'Managed multiple asset classes'],
+      mistakes: ['Review your best and worst performing assets'],
+      opportunities: ['Analyze what could have been done differently'],
+      recommendations: ['Play again to improve your strategy'],
+      investmentTips: 'Focus on diversification and consistency.',
+    }
   }
-  
-  const summary = summaries[category];
-  return summary[Math.floor(Math.random() * summary.length)];
 }

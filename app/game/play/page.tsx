@@ -9,6 +9,7 @@ import { formatCurrency } from "@/lib/utils";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { CashChangeNotification } from "@/components/ui/cash-change-notification";
 import { GameCoachPanel } from "@/components/ui/game-coach-panel";
+import { GameResultsSummary } from "@/components/game-results-summary";
 import { useGameCoach } from "@/hooks/use-game-coach";
 import { toast } from 'react-toastify';
 
@@ -86,33 +87,83 @@ export default function GamePlay() {
   const [gameStarted, setGameStarted] = useState(false);
   const [showInvestmentSelector, setShowInvestmentSelector] = useState(false);
   const [showGameOverModal, setShowGameOverModal] = useState(false);
+  const [showCheatButton, setShowCheatButton] = useState(false);
+
+  // Development cheat: Show cheat button after 30 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowCheatButton(true);
+    }, 30000); // Show after 30 seconds
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   // Function to save game results for signed-in users
   const saveGameResults = async () => {
-    if (!user) return; // Don't save if user is not signed in
+    console.log('🎮 saveGameResults called');
+    console.log('🔑 User:', user);
+    console.log('💰 Net Worth:', netWorth);
+    console.log('🤖 AI Net Worth:', aiNetWorth);
+    console.log('📊 Investments:', investments);
+    
+    if (!user) {
+      console.log('❌ No user, not saving game results');
+      return; // Don't save if user is not signed in
+    }
 
     const playerWon = netWorth > aiNetWorth;
+    const gameId = `game_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`; // Unique ID
     const gameResult = {
+      gameId,
       userId: user.id,
       date: new Date().toISOString(),
       playerScore: netWorth,
       aiScore: aiNetWorth,
       result: playerWon ? 'win' : 'loss',
       difficulty: difficulty,
+      investments,
+      investmentProfits,
+      transactionHistory: useGameStore.getState().transactionHistory, // Add detailed transaction log
+      bestPerformingAsset: Object.entries(investments).sort(([, a]: any, [, b]: any) => b - a)[0]?.[0] || 'Unknown',
+      worstPerformingAsset: Object.entries(investments).sort(([, a]: any, [, b]: any) => a - b)[0]?.[0] || 'Unknown',
+      totalInvested: Object.values(investments).reduce((a: number, b: number) => a + b, 0),
+      totalReturns: netWorth - (Object.values(investments).reduce((a: number, b: number) => a + b, 0)),
+      gameStats: {
+        totalTransactions: useGameStore.getState().transactionHistory.length,
+        assetsInvested: Object.keys(investments).filter(asset => investments[asset as keyof typeof investments] > 0).length,
+        averageTransactionSize: useGameStore.getState().transactionHistory.length > 0 
+          ? useGameStore.getState().transactionHistory.reduce((sum, txn) => sum + txn.amount, 0) / useGameStore.getState().transactionHistory.length 
+          : 0
+      }
     };
 
+    console.log('💾 Game result to save:', gameResult);
+
     try {
-      // Save to localStorage with user ID as key for now
-      // In a real app, this would be saved to a database
+      // Save to localStorage with user ID as key
       const userResultsKey = `gameResults_${user.id}`;
+      console.log('🔑 Storage key:', userResultsKey);
+      
       const existingResults = localStorage.getItem(userResultsKey);
+      console.log('📄 Existing results:', existingResults ? 'Found' : 'None');
+      
       const results = existingResults ? JSON.parse(existingResults) : [];
+      console.log('📊 Current results count:', results.length);
+      
       results.push(gameResult);
       localStorage.setItem(userResultsKey, JSON.stringify(results));
       
+      console.log('✅ Game saved successfully to key:', userResultsKey);
+      console.log('📈 Total games now:', results.length);
+      
+      // Verify the save worked
+      const verifyResults = localStorage.getItem(userResultsKey);
+      const verifyParsed = verifyResults ? JSON.parse(verifyResults) : [];
+      console.log('🔍 Verification: Found', verifyParsed.length, 'games after save');
+      
       toast.success(`🎯 Game results saved! You ${playerWon ? 'won' : 'lost'} with ₹${formatCurrency(netWorth)} vs AI's ₹${formatCurrency(aiNetWorth)}`);
     } catch (error) {
-      console.error('Failed to save game results:', error);
+      console.error('💥 Failed to save game results:', error);
       toast.error('❌ Failed to save game results');
     }
   };
@@ -129,11 +180,25 @@ export default function GamePlay() {
     initializeGame();
     setGameStarted(true); // Trigger the starting animation
 
-    let logCounter = 0;
     function gameLoop() {
+      // Always check for game over state at the beginning of each frame
+      const currentState = useGameStore.getState();
+      if (currentState.isGameOver) {
+        console.log('🛑 Game loop stopped - Game is over');
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = undefined;
+        }
+        return;
+      }
+      
       // Always call advanceTime - it will handle pause logic internally
       advanceTime();
-      animationFrameRef.current = requestAnimationFrame(gameLoop);
+      
+      // Schedule next frame only if game is not over
+      if (!currentState.isGameOver) {
+        animationFrameRef.current = requestAnimationFrame(gameLoop);
+      }
     }
 
     animationFrameRef.current = requestAnimationFrame(gameLoop);
@@ -141,9 +206,10 @@ export default function GamePlay() {
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = undefined;
       }
     };
-  }, []); // Keep empty dependency array
+  }, []); // Remove isGameOver dependency to prevent restart
 
   const progress = Math.min(1, gameTime / (10 * 60 * 1000)); // 10 minutes total
   const year = Math.floor(progress * 10); // 10 years total
@@ -617,6 +683,24 @@ export default function GamePlay() {
           </div>
         </div>
       </header>
+
+      {/* Development Cheat Button */}
+      {showCheatButton && !isGameOver && (
+        <div className="fixed top-4 right-4 z-50">
+          <button
+            onClick={() => {
+              // Force the game to end by setting gameTime to the duration
+              const gameStore = useGameStore.getState();
+              gameStore.gameTime = 600000; // Set to 10 minutes (GAME_DURATION)
+              gameStore.isGameOver = true; // Also directly set isGameOver
+              console.log('🎯 CHEAT: Forcing game to end - gameTime:', gameStore.gameTime, 'isGameOver:', gameStore.isGameOver);
+            }}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-bold border-2 border-red-400 animate-pulse"
+          >
+            🎯 END GAME (DEV)
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-[300px,1fr,300px] min-h-[calc(100vh-120px)]">
         {/* Pause overlay */}
@@ -1746,57 +1830,83 @@ export default function GamePlay() {
             exit={{ opacity: 0 }}
           >
             <motion.div
-              className="bg-card/95 backdrop-blur-sm border border-border rounded-2xl p-8 max-w-md w-full text-center shadow-2xl"
+              className="bg-card/95 backdrop-blur-sm border border-border rounded-2xl p-8 max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
             >
-              <div className="text-6xl mb-4">
-                {netWorth > aiNetWorth ? '🏆' : '💔'}
-              </div>
-              
-              <h2 className="text-3xl font-bold mb-4 font-orbitron">
-                {netWorth > aiNetWorth ? 'Victory!' : 'Game Over'}
-              </h2>
-              
-              <div className="space-y-4 mb-6">
-                <div className="bg-background/50 rounded-lg p-4">
-                  <p className="text-sm text-muted-foreground mb-2">Your Final Score</p>
-                  <p className="text-2xl font-bold text-primary">{formatCurrency(netWorth)}</p>
+              {/* Header */}
+              <div className="text-center mb-8">
+                <div className="text-6xl mb-4">
+                  {netWorth > aiNetWorth ? '🏆' : '💔'}
                 </div>
                 
-                <div className="bg-background/50 rounded-lg p-4">
-                  <p className="text-sm text-muted-foreground mb-2">AI Final Score</p>
-                  <p className="text-2xl font-bold text-destructive">{formatCurrency(aiNetWorth)}</p>
-                </div>
+                <h2 className="text-3xl font-bold mb-4 font-orbitron">
+                  {netWorth > aiNetWorth ? 'Victory!' : 'Game Over'}
+                </h2>
                 
-                <div className="bg-background/50 rounded-lg p-4">
-                  <p className="text-sm text-muted-foreground mb-2">Margin</p>
-                  <p className={`text-xl font-bold ${netWorth > aiNetWorth ? 'text-green-600' : 'text-red-600'}`}>
-                    {netWorth > aiNetWorth ? '+' : ''}{formatCurrency(netWorth - aiNetWorth)}
+                {/* Score Summary */}
+                <div className="grid md:grid-cols-3 gap-4 mb-6">
+                  <div className="bg-background/50 rounded-lg p-4">
+                    <p className="text-sm text-muted-foreground mb-2">Your Final Score</p>
+                    <p className="text-2xl font-bold text-primary">{formatCurrency(netWorth)}</p>
+                  </div>
+                  
+                  <div className="bg-background/50 rounded-lg p-4">
+                    <p className="text-sm text-muted-foreground mb-2">AI Final Score</p>
+                    <p className="text-2xl font-bold text-destructive">{formatCurrency(aiNetWorth)}</p>
+                  </div>
+                  
+                  <div className="bg-background/50 rounded-lg p-4">
+                    <p className="text-sm text-muted-foreground mb-2">Margin</p>
+                    <p className={`text-xl font-bold ${netWorth > aiNetWorth ? 'text-green-600' : 'text-red-600'}`}>
+                      {netWorth > aiNetWorth ? '+' : ''}{formatCurrency(netWorth - aiNetWorth)}
+                    </p>
+                  </div>
+                </div>
+
+                {user && (
+                  <p className="text-sm text-muted-foreground mb-6">
+                    ✅ Your result has been saved to your game history!
                   </p>
-                </div>
+                )}
               </div>
 
-              {user && (
-                <p className="text-sm text-muted-foreground mb-4">
-                  ✅ Your result has been saved to your game history!
-                </p>
-              )}
+              {/* AI Analysis Section */}
+              <div className="mb-8">
+                <h3 className="text-2xl font-bold mb-4 text-center">📊 AI Investment Analysis</h3>
+                <GameResultsSummary
+                  gameStats={{
+                    playerScore: netWorth,
+                    aiScore: aiNetWorth,
+                    result: netWorth > aiNetWorth ? 'win' : 'loss',
+                    yearsPlayed: 10,
+                    difficulty: difficulty,
+                    investmentBreakdown: investments,
+                    investmentProfits: investmentProfits, // Add investment profits
+                    transactionHistory: useGameStore.getState().transactionHistory, // Add transaction history
+                    bestPerformingAsset: Object.entries(investments).sort(([, a]: any, [, b]: any) => b - a)[0]?.[0] || 'Unknown',
+                    worstPerformingAsset: Object.entries(investments).sort(([, a]: any, [, b]: any) => a - b)[0]?.[0] || 'Unknown',
+                    totalInvested: Object.values(investments).reduce((a: number, b: number) => a + b, 0),
+                    totalReturns: netWorth - (Object.values(investments).reduce((a: number, b: number) => a + b, 0)),
+                  }}
+                />
+              </div>
 
-              <div className="space-y-3">
+              {/* Action Buttons */}
+              <div className="grid md:grid-cols-2 gap-4">
                 <button
-                  onClick={() => router.push('/results')}
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 rounded-lg font-semibold transition-colors"
+                  onClick={() => router.push('/past-results')}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 rounded-lg font-semibold transition-colors"
                 >
-                  View Game History
+                  📈 View All Games
                 </button>
                 
                 <button
                   onClick={() => router.push('/game')}
-                  className="w-full bg-secondary hover:bg-secondary/90 text-secondary-foreground px-6 py-3 rounded-lg font-semibold transition-colors"
+                  className="bg-secondary hover:bg-secondary/90 text-secondary-foreground px-6 py-3 rounded-lg font-semibold transition-colors"
                 >
-                  Play Again
+                  🎮 Play Again
                 </button>
               </div>
             </motion.div>

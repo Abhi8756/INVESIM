@@ -9,12 +9,13 @@ export function Navigation() {
     <header className="border-b">
       <div className="flex h-16 items-center px-4 max-w-7xl mx-auto">
         <div className="flex items-center gap-6 flex-1">
-          <Link href="/" className="font-semibold">
+          <Link href="/" className="font-semibold font-orbitron text-lg">
             Invesim
           </Link>
           <nav className="flex gap-4">
-
-            <Link href="/results">Past Results</Link>
+            <Link href="/past-results" className="text-sm hover:text-primary transition-colors">
+              Past Results
+            </Link>
           </nav>
         </div>
         
@@ -22,7 +23,7 @@ export function Navigation() {
           <ThemeToggle />
           <SignedOut>
             <SignInButton mode="modal">
-              <button className="px-4 py-2 rounded bg-blue-500 text-white">
+              <button className="px-4 py-2 rounded-lg bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors">
                 Sign In
               </button>
             </SignInButton>
