@@ -87,16 +87,7 @@ export default function GamePlay() {
   const [gameStarted, setGameStarted] = useState(false);
   const [showInvestmentSelector, setShowInvestmentSelector] = useState(false);
   const [showGameOverModal, setShowGameOverModal] = useState(false);
-  const [showCheatButton, setShowCheatButton] = useState(false);
-
-  // Development cheat: Show cheat button after 30 seconds
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowCheatButton(true);
-    }, 30000); // Show after 30 seconds
-    
-    return () => clearTimeout(timer);
-  }, []);
+  const [showEndGameButton] = useState(true);
 
   // Function to save game results for signed-in users
   const saveGameResults = async () => {
@@ -684,20 +675,20 @@ export default function GamePlay() {
         </div>
       </header>
 
-      {/* Development Cheat Button */}
-      {showCheatButton && !isGameOver && (
+      {/* End Game Button */}
+      {showEndGameButton && !isGameOver && (
         <div className="fixed top-4 right-4 z-50">
           <button
             onClick={() => {
-              // Force the game to end by setting gameTime to the duration
+              // Force the game to end
               const gameStore = useGameStore.getState();
               gameStore.gameTime = 600000; // Set to 10 minutes (GAME_DURATION)
               gameStore.isGameOver = true; // Also directly set isGameOver
-              console.log('🎯 CHEAT: Forcing game to end - gameTime:', gameStore.gameTime, 'isGameOver:', gameStore.isGameOver);
+              console.log('🎯 Game ended by user - gameTime:', gameStore.gameTime, 'isGameOver:', gameStore.isGameOver);
             }}
-            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-bold border-2 border-red-400 animate-pulse"
+            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-bold border border-gray-500 transition-colors"
           >
-            🎯 END GAME (DEV)
+            End Game
           </button>
         </div>
       )}
