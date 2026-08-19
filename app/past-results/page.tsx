@@ -45,22 +45,24 @@ export default function PastResults() {
       const userResultsKey = `gameResults_${userId}`
       console.log('🔑 Checking localStorage key:', userResultsKey)
       
-      // Direct localStorage access
-      const storedData = localStorage.getItem(userResultsKey)
-      console.log('💾 Raw data:', storedData)
-      
-      if (storedData) {
-        try {
-          const parsedGames = JSON.parse(storedData)
-          console.log('📊 Parsed games:', parsedGames)
-          setGames(Array.isArray(parsedGames) ? parsedGames.reverse() : [])
-        } catch (e) {
-          console.error('❌ Parse error:', e)
+      // Only access localStorage on client side
+      if (typeof window !== 'undefined') {
+        const storedData = localStorage.getItem(userResultsKey)
+        console.log('💾 Raw data:', storedData)
+        
+        if (storedData) {
+          try {
+            const parsedGames = JSON.parse(storedData)
+            console.log('📊 Parsed games:', parsedGames)
+            setGames(Array.isArray(parsedGames) ? parsedGames.reverse() : [])
+          } catch (e) {
+            console.error('❌ Parse error:', e)
+            setGames([])
+          }
+        } else {
+          console.log('❌ No data found in localStorage')
           setGames([])
         }
-      } else {
-        console.log('❌ No data found in localStorage')
-        setGames([])
       }
     } else {
       console.log('❌ User not signed in')
@@ -124,12 +126,15 @@ export default function PastResults() {
     if (!userId) return
     if (!confirm('Are you sure you want to delete this game record?')) return
 
-    const userResultsKey = `gameResults_${userId}`
-    const storedResults = localStorage.getItem(userResultsKey)
-    if (storedResults) {
-      const results = JSON.parse(storedResults).filter((g: GameResult) => g.gameId !== gameId)
-      localStorage.setItem(userResultsKey, JSON.stringify(results))
-      setGames(games.filter(g => g.gameId !== gameId))
+    // Only access localStorage on client side
+    if (typeof window !== 'undefined') {
+      const userResultsKey = `gameResults_${userId}`
+      const storedResults = localStorage.getItem(userResultsKey)
+      if (storedResults) {
+        const results = JSON.parse(storedResults).filter((g: GameResult) => g.gameId !== gameId)
+        localStorage.setItem(userResultsKey, JSON.stringify(results))
+        setGames(games.filter(g => g.gameId !== gameId))
+      }
     }
   }
 

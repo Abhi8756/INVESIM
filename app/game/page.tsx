@@ -95,13 +95,14 @@ export default function GamePage() {
   const router = useRouter()
 
   useEffect(() => {
-    if (isLoaded && !isSignedIn) {
+    // Only redirect if we're on the client side and auth is loaded
+    if (typeof window !== 'undefined' && isLoaded && !isSignedIn) {
       router.push('/sign-in')
     }
   }, [isSignedIn, isLoaded, router])
 
-  // Show loading while checking auth
-  if (!isLoaded) {
+  // Show loading while checking auth (only on client side)
+  if (typeof window !== 'undefined' && !isLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -111,8 +112,8 @@ export default function GamePage() {
     )
   }
 
-  // Don't render game if not signed in
-  if (!isSignedIn) {
+  // Don't render game if not signed in (only on client side)
+  if (typeof window !== 'undefined' && isLoaded && !isSignedIn) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">

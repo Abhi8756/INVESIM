@@ -131,28 +131,30 @@ export default function GamePlay() {
     console.log('💾 Game result to save:', gameResult);
 
     try {
-      // Save to localStorage with user ID as key
-      const userResultsKey = `gameResults_${user.id}`;
-      console.log('🔑 Storage key:', userResultsKey);
-      
-      const existingResults = localStorage.getItem(userResultsKey);
-      console.log('📄 Existing results:', existingResults ? 'Found' : 'None');
-      
-      const results = existingResults ? JSON.parse(existingResults) : [];
-      console.log('📊 Current results count:', results.length);
-      
-      results.push(gameResult);
-      localStorage.setItem(userResultsKey, JSON.stringify(results));
-      
-      console.log('✅ Game saved successfully to key:', userResultsKey);
-      console.log('📈 Total games now:', results.length);
-      
-      // Verify the save worked
-      const verifyResults = localStorage.getItem(userResultsKey);
-      const verifyParsed = verifyResults ? JSON.parse(verifyResults) : [];
-      console.log('🔍 Verification: Found', verifyParsed.length, 'games after save');
-      
-      toast.success(`🎯 Game results saved! You ${playerWon ? 'won' : 'lost'} with ₹${formatCurrency(netWorth)} vs AI's ₹${formatCurrency(aiNetWorth)}`);
+      // Save to localStorage with user ID as key (client-side only)
+      if (typeof window !== 'undefined') {
+        const userResultsKey = `gameResults_${user.id}`;
+        console.log('🔑 Storage key:', userResultsKey);
+        
+        const existingResults = localStorage.getItem(userResultsKey);
+        console.log('📄 Existing results:', existingResults ? 'Found' : 'None');
+        
+        const results = existingResults ? JSON.parse(existingResults) : [];
+        console.log('📊 Current results count:', results.length);
+        
+        results.push(gameResult);
+        localStorage.setItem(userResultsKey, JSON.stringify(results));
+        
+        console.log('✅ Game saved successfully to key:', userResultsKey);
+        console.log('📈 Total games now:', results.length);
+        
+        // Verify the save worked
+        const verifyResults = localStorage.getItem(userResultsKey);
+        const verifyParsed = verifyResults ? JSON.parse(verifyResults) : [];
+        console.log('🔍 Verification: Found', verifyParsed.length, 'games after save');
+        
+        toast.success(`🎯 Game results saved! You ${playerWon ? 'won' : 'lost'} with ₹${formatCurrency(netWorth)} vs AI's ₹${formatCurrency(aiNetWorth)}`);
+      }
     } catch (error) {
       console.error('💥 Failed to save game results:', error);
       toast.error('❌ Failed to save game results');
